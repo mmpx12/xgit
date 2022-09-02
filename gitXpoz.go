@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	URL "net/url"
 	"os"
@@ -25,7 +26,7 @@ var (
 	output   = "found_git.txt"
 	proxy    string
 	insecure bool
-	version  = "1.0.2"
+	version  = "1.0.0"
 	timeout  = 5
 )
 
@@ -50,28 +51,32 @@ func Verify(resp *http.Response) (ok bool) {
 func CheckURL(i, total int, url string) {
 	defer wg.Done()
 	fmt.Printf("\033[1K\r\033[31m[\033[33m%d\033[36m/\033[33m%d \033[36m(\033[32m%d\033[36m)\033[31m] \033[35m%s\033[0m", i, total, success, url)
-	var resp *http.Response
-	var err error
-	if proxy == "" {
-		client := &http.Client{Timeout: time.Duration(timeout) * time.Second}
-		if insecure {
-			tr := &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			}
-			client = &http.Client{Transport: tr}
-		}
-		resp, err = client.Get("https://" + url + "/.git/")
-	} else {
-		proxyURL, _ := URL.Parse(proxy)
-		transport := &http.Transport{Proxy: http.ProxyURL(proxyURL)}
-		if insecure {
-			transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		}
-		client := &http.Client{Transport: transport, Timeout: time.Duration(timeout) * time.Second}
-		resp, err = client.Get("https://" + url + "/.git/")
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout:   time.Duration(timeout) * time.Second,
+				KeepAlive: time.Duration(timeout) * time.Second,
+			}).DialContext,
+			TLSHandshakeTimeout:   time.Duration(timeout) * time.Second,
+			ResponseHeaderTimeout: 2 * time.Second,
+			ExpectContinueTimeout: 2 * time.Second,
+			DisableKeepAlives:     true,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: insecure},
+		},
 	}
+	if proxy != "" {
+		proxyURL, _ := URL.Parse(proxy)
+		client = &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyURL(proxyURL),
+			},
+		}
+	}
+
+	resp, err := client.Get("https://" + url + "/.git/")
+
 	if err != nil {
-		resp.Body.Close()
 		<-thread
 		return
 	}
@@ -141,7 +146,7 @@ func main() {
 	op.Exemple("gitXpoz -i top-alexa.txt")
 	op.Exemple("gitXpoz -p socks5://127.0.0.1:9050 -o good.txt -i top-alexa.txt -t 60")
 	op.Parse()
-	op.Logo("gitXpoz", "smslant", false)
+	op.Logo("gitXpoz", "doom", false)
 
 	if printversion {
 		fmt.Println("version:", version)
@@ -166,4 +171,6 @@ func main() {
 	log.SetOutput(io.Discard)
 	os.Setenv("GODEBUG", "http2client=0")
 	ReadTargets(input)
+	count := LineNBR(output)
+	fmt.Printf("\nFound %d git repos\n", count)
 }
