@@ -26,7 +26,7 @@ var (
 	output   = "found_git.txt"
 	proxy    string
 	insecure bool
-	version  = "1.1.1"
+	version  = "1.1.2"
 	timeout  = 5
 )
 
@@ -39,7 +39,6 @@ func WriteToFile(target string) {
 func Verify(resp *http.Response) (ok bool) {
 	scan := bufio.NewScanner(resp.Body)
 	toFind := []byte("Index of /.git")
-	defer resp.Body.Close()
 	for scan.Scan() {
 		if bytes.Contains(scan.Bytes(), toFind) {
 			return true
@@ -48,38 +47,19 @@ func Verify(resp *http.Response) (ok bool) {
 	return false
 }
 
-func CheckURL(i, total int, url string) {
+func CheckURL(client *http.Client, i, total int, url string) {
 	defer wg.Done()
 	fmt.Printf("\033[1K\r\033[31m[\033[33m%d\033[36m/\033[33m%d \033[36m(\033[32m%d\033[36m)\033[31m] \033[35m%s\033[0m", i, total, success, url)
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			DialContext: (&net.Dialer{
-				Timeout:   time.Duration(timeout) * time.Second,
-				KeepAlive: time.Duration(timeout) * time.Second,
-			}).DialContext,
-			TLSHandshakeTimeout:   time.Duration(timeout) * time.Second,
-			ResponseHeaderTimeout: 2 * time.Second,
-			ExpectContinueTimeout: 2 * time.Second,
-			DisableKeepAlives:     true,
-			TLSClientConfig:       &tls.Config{InsecureSkipVerify: insecure},
-		},
-	}
-	if proxy != "" {
-		proxyURL, _ := URL.Parse(proxy)
-		client = &http.Client{
-			Transport: &http.Transport{
-				Proxy: http.ProxyURL(proxyURL),
-			},
-		}
-	}
-
 	resp, err := client.Get("https://" + url + "/.git/")
 
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	if err != nil {
 		<-thread
 		return
 	}
+
 	if resp.StatusCode == 200 {
 		isGit := Verify(resp)
 		if isGit {
@@ -122,11 +102,34 @@ func ReadTargets(input string) {
 	fileScanner.Split(bufio.ScanLines)
 	i := 0
 	total := LineNBR(input)
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout:   time.Duration(timeout) * time.Second,
+				KeepAlive: time.Duration(timeout) * time.Second,
+			}).DialContext,
+			TLSHandshakeTimeout:   time.Duration(timeout) * time.Second,
+			ResponseHeaderTimeout: 3 * time.Second,
+			ExpectContinueTimeout: 3 * time.Second,
+			DisableKeepAlives:     true,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: insecure},
+		},
+	}
+	if proxy != "" {
+		proxyURL, _ := URL.Parse(proxy)
+		client = &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyURL(proxyURL),
+			},
+		}
+	}
+
 	for fileScanner.Scan() {
 		thread <- struct{}{}
 		i++
 		wg.Add(1)
-		go CheckURL(i, total, fileScanner.Text())
+		go CheckURL(client, i, total, fileScanner.Text())
 	}
 	wg.Wait()
 }
