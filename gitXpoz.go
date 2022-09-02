@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/mmpx12/optionparser"
 )
@@ -23,7 +24,8 @@ var (
 	output   = "found_git.txt"
 	proxy    string
 	insecure bool
-	version  = "1.0.1"
+	version  = "1.0.2"
+	timeout  = 5
 )
 
 func WriteToFile(target string) {
@@ -50,7 +52,7 @@ func CheckURL(i, total int, url string) {
 	var resp *http.Response
 	var err error
 	if proxy == "" {
-		client := &http.Client{}
+		client := &http.Client{Timeout: time.Duration(timeout) * time.Second}
 		if insecure {
 			tr := &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -64,10 +66,11 @@ func CheckURL(i, total int, url string) {
 		if insecure {
 			transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 		}
-		client := &http.Client{Transport: transport}
+		client := &http.Client{Transport: transport, Timeout: time.Duration(timeout) * time.Second}
 		resp, err = client.Get("https://" + url + "/.git/")
 	}
 	if err != nil {
+		resp.Body.Close()
 		<-thread
 		return
 	}
@@ -123,7 +126,7 @@ func ReadTargets(input string) {
 }
 
 func main() {
-	var threads, input string
+	var threads, input, time string
 	var printversion bool
 	op := optionparser.NewOptionParser()
 	op.Banner = "Find exposed git repos\n\nUsage:\n"
@@ -131,6 +134,7 @@ func main() {
 	op.On("-o", "--output FILE", "Output file (default found_git.txt)", &output)
 	op.On("-i", "--input FILE", "Input file", &input)
 	op.On("-I", "--insecure", "Ignore certificate errors", &insecure)
+	op.On("-t", "--timeout SEC", "Set timeout (default 5s)", &time)
 	op.On("-p", "--proxy PROXY", "Use proxy (proto://ip:port)", &proxy)
 	op.On("-V", "--version", "Print version and exit", &printversion)
 	op.Exemple("gitXpoz -i top-alexa.txt")
@@ -146,6 +150,10 @@ func main() {
 	if threads != "" {
 		tr, _ := strconv.Atoi(threads)
 		thread = make(chan struct{}, tr)
+	}
+
+	if time != "" {
+		timeout, _ = strconv.Atoi(time)
 	}
 
 	if input == "" {
