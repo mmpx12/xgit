@@ -26,7 +26,7 @@ var (
 	output   = "found_git.txt"
 	proxy    string
 	insecure bool
-	version  = "1.0.0"
+	version  = "1.1.1"
 	timeout  = 5
 )
 
@@ -139,12 +139,12 @@ func main() {
 	op.On("-t", "--thread NBR", "Number of threads (default 50)", &threads)
 	op.On("-o", "--output FILE", "Output file (default found_git.txt)", &output)
 	op.On("-i", "--input FILE", "Input file", &input)
-	op.On("-I", "--insecure", "Ignore certificate errors", &insecure)
+	op.On("-k", "--insecure", "Ignore certificate errors", &insecure)
 	op.On("-t", "--timeout SEC", "Set timeout (default 5s)", &time)
 	op.On("-p", "--proxy PROXY", "Use proxy (proto://ip:port)", &proxy)
 	op.On("-V", "--version", "Print version and exit", &printversion)
 	op.Exemple("gitXpoz -i top-alexa.txt")
-	op.Exemple("gitXpoz -p socks5://127.0.0.1:9050 -o good.txt -i top-alexa.txt -t 60")
+	op.Exemple("gitXpoz -p socks5://127.0.0.1:9050 -K -o good.txt -i top-alexa.txt -t 60")
 	op.Parse()
 	op.Logo("gitXpoz", "doom", false)
 

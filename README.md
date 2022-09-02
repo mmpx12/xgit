@@ -8,7 +8,7 @@ Found exposed git repositories.
 -t, --thread=NBR             Number of threads (default 50)
 -o, --output=FILE            Output file (default found_git.txt)
 -i, --input=FILE             Input file
--I, --insecure               Ignore certificate errors
+-k, --insecure               Ignore certificate errors
 -p, --proxy=PROXY            Use proxy (proto://ip:port)
 -V, --version                Print version and exit
 
