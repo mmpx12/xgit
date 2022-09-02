@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	URL "net/url"
 	"os"
@@ -162,6 +163,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	log.SetOutput(io.Discard)
 	os.Setenv("GODEBUG", "http2client=0")
 	ReadTargets(input)
 }
