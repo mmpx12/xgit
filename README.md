@@ -1,37 +1,71 @@
-# GITXPOZ
+# X-GIT
 
-Found exposed git repositories.
+```
+ ___ __   __                _  _    ___
+|  _|\ \ / /               (_)| |  |_  |
+| |   \ V /  ______   __ _  _ | |_   | |
+| |   /   \ |______| / _` || || __|  | |
+| |  / /^\ \        | (_| || || |_   | |
+| |_ \/   \/         \__, ||_| \__| _| |
+|___|                 __/ |        |___|
+                     |___/
+```
+
+Scan for exposed git repositories.
 
 ## Usage:
 
--h, --help                   Show this help
--t, --thread=NBR             Number of threads (default 50)
--o, --output=FILE            Output file (default found_git.txt)
--i, --input=FILE             Input file
--k, --insecure               Ignore certificate errors
--p, --proxy=PROXY            Use proxy (proto://ip:port)
--V, --version                Print version and exit
+```
+-h, --help                     Show this help
+-t, --thread      NBR          Number of threads (default 50)
+-o, --output      FILE         Output file (default found_git.txt)
+-i, --input       FILE         Input file
+-k, --insecure                 Ignore certificate errors
+-T, --timeout     SEC          Set timeout (default 5s)
+-u, --user-agent  USR-AGENT    Set user agent
+-p, --proxy       PROXY        Use proxy (proto://ip:port)
+-V, --version                  Print version and exit
+```
 
 ## Examples:
 
 ```sh
-$ gitXpoz -i top-alexa.txt
-$ gitXpoz -p socks5://127.0.0.1:9050 -o good.txt -i top-alexa.txt -t 60
+$ xgit -i top-alexa.txt
+$ xgit -p socks5://127.0.0.1:9050 -o good.txt -i top-alexa.txt -t 60
 ```
+
+**Example of input file:**
+
+```
+google.com
+github.com
+domain.com/code
+```
+
+**note:** domain in list shouldn't have protocol in them:
+
+```go
+req, err := http.NewRequest("GET", "https://"+url+"/.git/", nil)
+```
+
+#### WARNING
+
+Do not use too much threads or you will DOS yourself.
+
 
 ## Install:
 
 With one liner if **$GOROOT/bin/** is in **$PATH**:
 
 ```sh
-go install github.com/mmpx12/gitXpoz@latest
+go install github.com/mmpx12/xgit@latest
 ```
 
 or from source with:
 
 ```sh
-git clone https://github.com/mmpx12/gitXpoz.git
-cd gitXpoz
+git clone https://github.com/mmpx12/xgit.git
+cd xgit
 make
 sudo make install
 # or 
@@ -41,8 +75,8 @@ sudo make all
 for **termux** you can do:
 
 ```sh
-git clone https://github.com/mmpx12/gitXpoz.git
-cd gitXpoz
+git clone https://github.com/mmpx12/xgit.git
+cd xgit
 make
 make termux-install
 # or
@@ -50,4 +84,4 @@ make termux-all
 ```
 
 
-There is also prebuild binaries [here](https://github.com/mmpx12/gitXpoz/releases/latest).
+There is also prebuild binaries [here](https://github.com/mmpx12/xgit/releases/latest).

@@ -1,4 +1,4 @@
-module github.com/mmpx12/gitXpoz
+module github.com/mmpx12/xgit
 
 go 1.19
 
