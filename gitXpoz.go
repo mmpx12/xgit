@@ -19,15 +19,16 @@ import (
 )
 
 var (
-	success  = 0
-	mu       = &sync.Mutex{}
-	wg       = sync.WaitGroup{}
-	thread   = make(chan struct{}, 50)
-	output   = "found_git.txt"
-	proxy    string
-	insecure bool
-	version  = "1.1.2"
-	timeout  = 5
+	success   = 0
+	mu        = &sync.Mutex{}
+	thread    = make(chan struct{}, 50)
+	wg        sync.WaitGroup
+	output    = "found_git.txt"
+	proxy     string
+	insecure  bool
+	version   = "1.0.0"
+	timeout   = 5
+	userAgent = "Mozilla/5.0 (X11; Linux x86_64)"
 )
 
 func WriteToFile(target string) {
@@ -50,7 +51,9 @@ func Verify(resp *http.Response) (ok bool) {
 func CheckURL(client *http.Client, i, total int, url string) {
 	defer wg.Done()
 	fmt.Printf("\033[1K\r\033[31m[\033[33m%d\033[36m/\033[33m%d \033[36m(\033[32m%d\033[36m)\033[31m] \033[35m%s\033[0m", i, total, success, url)
-	resp, err := client.Get("https://" + url + "/.git/")
+	req, err := http.NewRequest("GET", "https://"+url+"/.git/", nil)
+	req.Header.Add("User-Agent", userAgent)
+	resp, err := client.Do(req)
 
 	if resp != nil {
 		defer resp.Body.Close()
@@ -66,8 +69,8 @@ func CheckURL(client *http.Client, i, total int, url string) {
 			success++
 			mu.Lock()
 			WriteToFile(resp.Request.URL.String())
-			fmt.Printf("\033[1K\rGIT FOUND: " + resp.Request.URL.String() + "\n")
 			mu.Unlock()
+			fmt.Printf("\033[1K\rGIT FOUND: " + resp.Request.URL.String() + "\n")
 
 		}
 	}
@@ -92,7 +95,7 @@ func LineNBR(f string) int {
 	}
 }
 
-func ReadTargets(input string) {
+func CheckGit(input string) {
 	readFile, err := os.Open(input)
 	defer readFile.Close()
 	if err != nil {
@@ -104,14 +107,13 @@ func ReadTargets(input string) {
 	total := LineNBR(input)
 
 	client := &http.Client{
+		Timeout: time.Duration(timeout) * time.Second,
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
-				Timeout:   time.Duration(timeout) * time.Second,
-				KeepAlive: time.Duration(timeout) * time.Second,
+				Timeout: time.Duration(timeout) * time.Second,
 			}).DialContext,
 			TLSHandshakeTimeout:   time.Duration(timeout) * time.Second,
 			ResponseHeaderTimeout: 3 * time.Second,
-			ExpectContinueTimeout: 3 * time.Second,
 			DisableKeepAlives:     true,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: insecure},
 		},
@@ -126,10 +128,11 @@ func ReadTargets(input string) {
 	}
 
 	for fileScanner.Scan() {
+		target := fileScanner.Text()
 		thread <- struct{}{}
 		i++
 		wg.Add(1)
-		go CheckURL(client, i, total, fileScanner.Text())
+		go CheckURL(client, i, total, target)
 	}
 	wg.Wait()
 }
@@ -138,18 +141,19 @@ func main() {
 	var threads, input, time string
 	var printversion bool
 	op := optionparser.NewOptionParser()
-	op.Banner = "Find exposed git repos\n\nUsage:\n"
+	op.Banner = "Scan for exposed git repos\n\nUsage:\n"
 	op.On("-t", "--thread NBR", "Number of threads (default 50)", &threads)
 	op.On("-o", "--output FILE", "Output file (default found_git.txt)", &output)
 	op.On("-i", "--input FILE", "Input file", &input)
 	op.On("-k", "--insecure", "Ignore certificate errors", &insecure)
-	op.On("-t", "--timeout SEC", "Set timeout (default 5s)", &time)
+	op.On("-T", "--timeout SEC", "Set timeout (default 5s)", &time)
+	op.On("-u", "--user-agent USR", "Set user agent", &userAgent)
 	op.On("-p", "--proxy PROXY", "Use proxy (proto://ip:port)", &proxy)
 	op.On("-V", "--version", "Print version and exit", &printversion)
-	op.Exemple("gitXpoz -i top-alexa.txt")
-	op.Exemple("gitXpoz -p socks5://127.0.0.1:9050 -K -o good.txt -i top-alexa.txt -t 60")
+	op.Exemple("xgit -i top-alexa.txt")
+	op.Exemple("xgit -p socks5://127.0.0.1:9050 -K -o good.txt -i top-alexa.txt -t 60")
 	op.Parse()
-	op.Logo("gitXpoz", "doom", false)
+	op.Logo("[X-git]", "doom", false)
 
 	if printversion {
 		fmt.Println("version:", version)
@@ -173,7 +177,7 @@ func main() {
 
 	log.SetOutput(io.Discard)
 	os.Setenv("GODEBUG", "http2client=0")
-	ReadTargets(input)
+	CheckGit(input)
 	count := LineNBR(output)
-	fmt.Printf("\nFound %d git repos\n", count)
+	fmt.Printf("\033[1k\rFound %d git repos\n", count)
 }
