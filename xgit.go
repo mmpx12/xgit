@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -26,7 +27,7 @@ var (
 	output    = "found_git.txt"
 	proxy     string
 	insecure  bool
-	version   = "1.0.0"
+	version   = "1.1.0"
 	timeout   = 5
 	userAgent = "Mozilla/5.0 (X11; Linux x86_64)"
 )
@@ -37,13 +38,34 @@ func WriteToFile(target string) {
 	fmt.Fprintln(f, target)
 }
 
-func Verify(resp *http.Response) (ok bool) {
+func VerifyDirListing(resp *http.Response) (ok bool) {
 	scan := bufio.NewScanner(resp.Body)
 	toFind := []byte("Index of /.git")
 	for scan.Scan() {
 		if bytes.Contains(scan.Bytes(), toFind) {
 			return true
 		}
+	}
+	return false
+}
+
+func verifyNonDirListing(client *http.Client, url string) (ok bool) {
+	req, err := http.NewRequest("GET", "https://"+url+"/.git/config", nil)
+	req.Header.Add("User-Agent", userAgent)
+	resp, err := client.Do(req)
+
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	if err != nil {
+		return false
+	}
+
+	body, _ := ioutil.ReadAll(resp.Body)
+	if string(body)[:6] == "[core]" {
+		return true
+	} else {
+		return false
 	}
 	return false
 }
@@ -64,14 +86,23 @@ func CheckURL(client *http.Client, i, total int, url string) {
 	}
 
 	if resp.StatusCode == 200 {
-		isGit := Verify(resp)
-		if isGit {
+		isGitDir := VerifyDirListing(resp)
+		if isGitDir {
 			success++
 			mu.Lock()
 			WriteToFile(resp.Request.URL.String())
 			mu.Unlock()
 			fmt.Printf("\033[1K\rGIT FOUND: " + resp.Request.URL.String() + "\n")
 
+		}
+	} else if resp.StatusCode == 403 {
+		isGit := verifyNonDirListing(client, url)
+		if isGit {
+			success++
+			mu.Lock()
+			WriteToFile(resp.Request.URL.String())
+			mu.Unlock()
+			fmt.Printf("\033[1K\rGIT FOUND (non dir listing): " + resp.Request.URL.String() + "\n")
 		}
 	}
 	<-thread
@@ -178,6 +209,6 @@ func main() {
 	log.SetOutput(io.Discard)
 	os.Setenv("GODEBUG", "http2client=0")
 	CheckGit(input)
-	count := LineNBR(output)
-	fmt.Printf("\033[1k\rFound %d git repos\n", count)
+	fmt.Printf("\033[1k\rFound %d git repos.", success)
+	fmt.Println()
 }
