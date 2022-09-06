@@ -80,6 +80,10 @@ func CheckURL(client *http.Client, i, total int, url string) {
 	defer wg.Done()
 	fmt.Printf("\033[1K\r\033[31m[\033[33m%d\033[36m/\033[33m%d \033[36m(\033[32m%d\033[36m)\033[31m] \033[35m%s\033[0m", i, total, success, url)
 	req, err := http.NewRequest("GET", "https://"+url+"/.git/", nil)
+	if err != nil {
+		<-thread
+		return
+	}
 	req.Header.Add("User-Agent", userAgent)
 	resp, err := client.Do(req)
 
