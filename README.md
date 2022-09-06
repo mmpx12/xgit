@@ -44,9 +44,16 @@ domain.com/code
 
 **note:** domain in list shouldn't have protocol in them:
 
+
 ```go
 req, err := http.NewRequest("GET", "https://"+url+"/.git/", nil)
 ```
+
+
+#### OUTPUT FILE:
+
+Urls with `[nd] ` prefix are exposed git repository but without directory listing.
+
 
 #### WARNING
 

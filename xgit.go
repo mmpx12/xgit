@@ -51,6 +51,9 @@ func VerifyDirListing(resp *http.Response) (ok bool) {
 
 func verifyNonDirListing(client *http.Client, url string) (ok bool) {
 	req, err := http.NewRequest("GET", "https://"+url+"/.git/config", nil)
+	if err != nil {
+		return false
+	}
 	req.Header.Add("User-Agent", userAgent)
 	resp, err := client.Do(req)
 
@@ -61,8 +64,11 @@ func verifyNonDirListing(client *http.Client, url string) (ok bool) {
 		return false
 	}
 
-	body, _ := ioutil.ReadAll(resp.Body)
-	if string(body)[:6] == "[core]" {
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return false
+	}
+	if len(string(body)) > 6 && string(body)[:6] == "[core]" {
 		return true
 	} else {
 		return false
@@ -100,7 +106,7 @@ func CheckURL(client *http.Client, i, total int, url string) {
 		if isGit {
 			success++
 			mu.Lock()
-			WriteToFile(resp.Request.URL.String())
+			WriteToFile("[nd] " + resp.Request.URL.String())
 			mu.Unlock()
 			fmt.Printf("\033[1K\rGIT FOUND (non dir listing): " + resp.Request.URL.String() + "\n")
 		}
