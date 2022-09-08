@@ -1,15 +1,6 @@
 # X-GIT
 
-```
- ___ __   __                _  _    ___
-|  _|\ \ / /               (_)| |  |_  |
-| |   \ V /  ______   __ _  _ | |_   | |
-| |   /   \ |______| / _` || || __|  | |
-| |  / /^\ \        | (_| || || |_   | |
-| |_ \/   \/         \__, ||_| \__| _| |
-|___|                 __/ |        |___|
-                     |___/
-```
+![img](.github/screenshot/output.png)
 
 Scan for exposed git repositories.
 
@@ -44,7 +35,7 @@ domain.com/code
 
 **note:** domain in list shouldn't have protocol in them:
 
-
+ 
 ```go
 req, err := http.NewRequest("GET", "https://"+url+"/.git/", nil)
 ```
@@ -53,6 +44,8 @@ req, err := http.NewRequest("GET", "https://"+url+"/.git/", nil)
 #### OUTPUT FILE:
 
 Urls with `[nd] ` prefix are exposed git repository but without directory listing.
+
+In stdout urls in cyan are git repository where directory listing is enable and yellow urls is when directory listing is disable. 
 
 
 #### WARNING

@@ -27,7 +27,7 @@ var (
 	output    = "found_git.txt"
 	proxy     string
 	insecure  bool
-	version   = "1.1.0"
+	version   = "1.1.2"
 	timeout   = 5
 	userAgent = "Mozilla/5.0 (X11; Linux x86_64)"
 )
@@ -102,7 +102,7 @@ func CheckURL(client *http.Client, i, total int, url string) {
 			mu.Lock()
 			WriteToFile(resp.Request.URL.String())
 			mu.Unlock()
-			fmt.Printf("\033[1K\rGIT FOUND: " + resp.Request.URL.String() + "\n")
+			fmt.Printf("\033[1K\rGIT FOUND:\033[36m " + resp.Request.URL.String() + "\033[0m\n")
 
 		}
 	} else if resp.StatusCode == 403 {
@@ -112,7 +112,7 @@ func CheckURL(client *http.Client, i, total int, url string) {
 			mu.Lock()
 			WriteToFile("[nd] " + resp.Request.URL.String())
 			mu.Unlock()
-			fmt.Printf("\033[1K\rGIT FOUND (non dir listing): " + resp.Request.URL.String() + "\n")
+			fmt.Printf("\033[1K\rGIT FOUND:\033[33m " + resp.Request.URL.String() + "\033[0m\n")
 		}
 	}
 	<-thread
@@ -141,6 +141,7 @@ func CheckGit(input string) {
 	defer readFile.Close()
 	if err != nil {
 		fmt.Println(err)
+		os.Exit(1)
 	}
 	fileScanner := bufio.NewScanner(readFile)
 	fileScanner.Split(bufio.ScanLines)
@@ -192,9 +193,13 @@ func main() {
 	op.On("-p", "--proxy PROXY", "Use proxy (proto://ip:port)", &proxy)
 	op.On("-V", "--version", "Print version and exit", &printversion)
 	op.Exemple("xgit -i top-alexa.txt")
-	op.Exemple("xgit -p socks5://127.0.0.1:9050 -K -o good.txt -i top-alexa.txt -t 60")
+	op.Exemple("xgit -p socks5://127.0.0.1:9050 -k -o good.txt -i top-alexa.txt -t 60")
+	op.Output("GIT FOUND:\033[36m https://localhost/.git/\033[0m (directory listing enable)")
+	op.Output("GIT FOUND:\033[33m https://localhost/.git/\033[0m (directory listing disable)")
 	op.Parse()
+	fmt.Printf("\033[31m")
 	op.Logo("[X-git]", "doom", false)
+	fmt.Printf("\033[0m")
 
 	if printversion {
 		fmt.Println("version:", version)
@@ -219,6 +224,5 @@ func main() {
 	log.SetOutput(io.Discard)
 	os.Setenv("GODEBUG", "http2client=0")
 	CheckGit(input)
-	fmt.Printf("\033[1k\rFound %d git repos.", success)
-	fmt.Println()
+	fmt.Printf("\033[1K\rFound %d git repos.\n", success)
 }
