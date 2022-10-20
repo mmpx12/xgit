@@ -10,6 +10,7 @@ Scan for exposed git repositories.
 -h, --help                     Show this help
 -t, --thread      NBR          Number of threads (default 50)
 -o, --output      FILE         Output file (default found_git.txt)
+-d, --check-date  DATE         Only repo after date (mm-dd-yyyy, yyyy, mm-yyyy)
 -i, --input       FILE         Input file
 -k, --insecure                 Ignore certificate errors
 -T, --timeout     SEC          Set timeout (default 5s)
@@ -22,6 +23,7 @@ Scan for exposed git repositories.
 
 ```sh
 $ xgit -i top-alexa.txt
+$ xgit -i top-alexa.txt -k -d 2021
 $ xgit -p socks5://127.0.0.1:9050 -o good.txt -i top-alexa.txt -t 60
 ```
 
