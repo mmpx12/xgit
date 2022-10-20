@@ -13,6 +13,7 @@ import (
 	URL "net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,16 +21,20 @@ import (
 )
 
 var (
-	success   = 0
-	mu        = &sync.Mutex{}
-	thread    = make(chan struct{}, 50)
-	wg        sync.WaitGroup
-	output    = "found_git.txt"
-	proxy     string
-	insecure  bool
-	version   = "1.1.2"
-	timeout   = 5
-	userAgent = "Mozilla/5.0 (X11; Linux x86_64)"
+	success       = 0
+	outdated_repo = 0
+	mu            = &sync.Mutex{}
+	thread        = make(chan struct{}, 50)
+	wg            sync.WaitGroup
+	output        = "found_git.txt"
+	proxy         string
+	insecure      bool
+	version       = "1.1.3"
+	timeout       = 5
+	date          string
+	dateFormat    string
+	dateCheck     bool
+	userAgent     = "Mozilla/5.0 (X11; Linux x86_64)"
 )
 
 func WriteToFile(target string) {
@@ -38,12 +43,59 @@ func WriteToFile(target string) {
 	fmt.Fprintln(f, target)
 }
 
-func VerifyDirListing(resp *http.Response) (ok bool) {
+func CheckDate(client *http.Client, url string) (outdated bool) {
+	if date == "" {
+		fmt.Println(date + " bad\n\n")
+		return true
+	}
+	req, err := http.NewRequest("GET", "https://"+url+"/.git/logs/HEAD", nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Add("User-Agent", userAgent)
+	resp, err := client.Do(req)
+
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	if err != nil {
+		return false
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return false
+	}
+	headDate := strings.Split(string(body), "\n")
+	headDate = strings.Split(headDate[len(headDate)-2], "@")
+	headDate = strings.Split(headDate[1], " ")
+	repodate, _ := strconv.Atoi(headDate[1])
+	t, err := time.Parse(dateFormat, date)
+	if repodate-int(t.Unix()) > 0 {
+		return true
+	} else {
+		i, err := strconv.ParseInt(headDate[1], 10, 64)
+		if err != nil {
+			panic(err)
+		}
+		tm := time.Unix(i, 0)
+		dom := string(resp.Request.URL.String()[:len(resp.Request.URL.String())-9])
+		fmt.Printf("\033[1K\r-OUTDATED:\033[37m " + dom + " \033[31mlast update: " + tm.Format("02-01-2006") + "\033[0m\n")
+		return false
+	}
+}
+
+func VerifyDirListing(resp *http.Response, client *http.Client, url string) (ok bool) {
 	scan := bufio.NewScanner(resp.Body)
 	toFind := []byte("Index of /.git")
 	for scan.Scan() {
 		if bytes.Contains(scan.Bytes(), toFind) {
-			return true
+			d := CheckDate(client, url)
+			if d {
+				return true
+			} else {
+				return false
+			}
 		}
 	}
 	return false
@@ -69,9 +121,12 @@ func verifyNonDirListing(client *http.Client, url string) (ok bool) {
 		return false
 	}
 	if len(string(body)) > 6 && string(body)[:6] == "[core]" {
-		return true
-	} else {
-		return false
+		d := CheckDate(client, url)
+		if d {
+			return true
+		} else {
+			return false
+		}
 	}
 	return false
 }
@@ -96,7 +151,7 @@ func CheckURL(client *http.Client, i, total int, url string) {
 	}
 
 	if resp.StatusCode == 200 {
-		isGitDir := VerifyDirListing(resp)
+		isGitDir := VerifyDirListing(resp, client, url)
 		if isGitDir {
 			success++
 			mu.Lock()
@@ -180,15 +235,16 @@ func CheckGit(input string) {
 }
 
 func main() {
-	var threads, input, time string
+	var threads, input, timeOut string
 	var printversion bool
 	op := optionparser.NewOptionParser()
 	op.Banner = "Scan for exposed git repos\n\nUsage:\n"
 	op.On("-t", "--thread NBR", "Number of threads (default 50)", &threads)
 	op.On("-o", "--output FILE", "Output file (default found_git.txt)", &output)
 	op.On("-i", "--input FILE", "Input file", &input)
+	op.On("-d", "--check-date DATE", "repo only after date (mm-dd-yyyy, yyyy, mm-yyyy)", &date)
 	op.On("-k", "--insecure", "Ignore certificate errors", &insecure)
-	op.On("-T", "--timeout SEC", "Set timeout (default 5s)", &time)
+	op.On("-T", "--timeout SEC", "Set timeout (default 5s)", &timeOut)
 	op.On("-u", "--user-agent USR", "Set user agent", &userAgent)
 	op.On("-p", "--proxy PROXY", "Use proxy (proto://ip:port)", &proxy)
 	op.On("-V", "--version", "Print version and exit", &printversion)
@@ -196,6 +252,7 @@ func main() {
 	op.Exemple("xgit -p socks5://127.0.0.1:9050 -k -o good.txt -i top-alexa.txt -t 60")
 	op.Output("GIT FOUND:\033[36m https://localhost/.git/\033[0m (directory listing enable)")
 	op.Output("GIT FOUND:\033[33m https://localhost/.git/\033[0m (directory listing disable)")
+	op.Output("-OUTDATED:\033[37m https://localhost/.git/\033[31m last update: 02-01-2006\033[0m\n")
 	op.Parse()
 	fmt.Printf("\033[31m")
 	op.Logo("[X-git]", "doom", false)
@@ -211,14 +268,29 @@ func main() {
 		thread = make(chan struct{}, tr)
 	}
 
-	if time != "" {
-		timeout, _ = strconv.Atoi(time)
+	if timeOut != "" {
+		timeout, _ = strconv.Atoi(timeOut)
 	}
 
 	if input == "" {
 		fmt.Println("\033[31m[!] You must specify an input file\033[0m\n")
 		op.Help()
 		os.Exit(1)
+	}
+
+	if date != "" {
+		switch len(date) {
+		case 7:
+			dateFormat = "01-2006"
+		case 4:
+			dateFormat = "2006"
+		case 10:
+			dateFormat = "01-02-2006"
+		default:
+			fmt.Println("[!] Date format error\n")
+			op.Help()
+			os.Exit(1)
+		}
 	}
 
 	log.SetOutput(io.Discard)
