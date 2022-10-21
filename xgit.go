@@ -29,11 +29,10 @@ var (
 	output        = "found_git.txt"
 	proxy         string
 	insecure      bool
-	version       = "1.1.3"
+	version       = "1.1.4"
 	timeout       = 5
 	date          string
 	dateFormat    string
-	dateCheck     bool
 	userAgent     = "Mozilla/5.0 (X11; Linux x86_64)"
 )
 
@@ -44,10 +43,6 @@ func WriteToFile(target string) {
 }
 
 func CheckDate(client *http.Client, url string) (outdated bool) {
-	if date == "" {
-		fmt.Println(date + " bad\n\n")
-		return true
-	}
 	req, err := http.NewRequest("GET", "https://"+url+"/.git/logs/HEAD", nil)
 	if err != nil {
 		return false
@@ -71,31 +66,26 @@ func CheckDate(client *http.Client, url string) (outdated bool) {
 	headDate = strings.Split(headDate[1], " ")
 	repodate, _ := strconv.Atoi(headDate[1])
 	t, err := time.Parse(dateFormat, date)
-	if repodate-int(t.Unix()) > 0 {
+	if repodate-int(t.Unix()) >= 0 {
 		return true
 	} else {
 		i, err := strconv.ParseInt(headDate[1], 10, 64)
 		if err != nil {
 			panic(err)
 		}
-		tm := time.Unix(i, 0)
+		t := time.Unix(i, 0)
 		dom := string(resp.Request.URL.String()[:len(resp.Request.URL.String())-9])
-		fmt.Printf("\033[1K\r-OUTDATED:\033[37m " + dom + " \033[31mlast update: " + tm.Format("02-01-2006") + "\033[0m\n")
+		fmt.Printf("\033[1K\rOUTDATED: \033[37m " + dom + " \033[31mlast update: " + t.Format("02-01-2006") + "\033[0m\n")
 		return false
 	}
 }
 
-func VerifyDirListing(resp *http.Response, client *http.Client, url string) (ok bool) {
+func VerifyDirListing(resp *http.Response) (ok bool) {
 	scan := bufio.NewScanner(resp.Body)
 	toFind := []byte("Index of /.git")
 	for scan.Scan() {
 		if bytes.Contains(scan.Bytes(), toFind) {
-			d := CheckDate(client, url)
-			if d {
-				return true
-			} else {
-				return false
-			}
+			return true
 		}
 	}
 	return false
@@ -121,12 +111,7 @@ func verifyNonDirListing(client *http.Client, url string) (ok bool) {
 		return false
 	}
 	if len(string(body)) > 6 && string(body)[:6] == "[core]" {
-		d := CheckDate(client, url)
-		if d {
-			return true
-		} else {
-			return false
-		}
+		return true
 	}
 	return false
 }
@@ -151,23 +136,26 @@ func CheckURL(client *http.Client, i, total int, url string) {
 	}
 
 	if resp.StatusCode == 200 {
-		isGitDir := VerifyDirListing(resp, client, url)
+		isGitDir := VerifyDirListing(resp)
 		if isGitDir {
-			success++
-			mu.Lock()
-			WriteToFile(resp.Request.URL.String())
-			mu.Unlock()
-			fmt.Printf("\033[1K\rGIT FOUND:\033[36m " + resp.Request.URL.String() + "\033[0m\n")
-
+			if date == "" || CheckDate(client, url) {
+				success++
+				mu.Lock()
+				WriteToFile(resp.Request.URL.String())
+				mu.Unlock()
+				fmt.Printf("\033[1K\rGIT FOUND:\033[36m " + resp.Request.URL.String() + "\033[0m\n")
+			}
 		}
 	} else if resp.StatusCode == 403 {
 		isGit := verifyNonDirListing(client, url)
 		if isGit {
-			success++
-			mu.Lock()
-			WriteToFile("[nd] " + resp.Request.URL.String())
-			mu.Unlock()
-			fmt.Printf("\033[1K\rGIT FOUND:\033[33m " + resp.Request.URL.String() + "\033[0m\n")
+			if date == "" || CheckDate(client, url) {
+				success++
+				mu.Lock()
+				WriteToFile("[nd] " + resp.Request.URL.String())
+				mu.Unlock()
+				fmt.Printf("\033[1K\rGIT FOUND:\033[33m " + resp.Request.URL.String() + "\033[0m\n")
+			}
 		}
 	}
 	<-thread
