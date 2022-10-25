@@ -12,6 +12,7 @@ import (
 	"net/http"
 	URL "net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,7 +30,7 @@ var (
 	output        = "found_git.txt"
 	proxy         string
 	insecure      bool
-	version       = "1.1.4"
+	version       = "1.1.5"
 	timeout       = 5
 	date          string
 	dateFormat    string
@@ -92,7 +93,7 @@ func VerifyDirListing(resp *http.Response) (ok bool) {
 }
 
 func verifyNonDirListing(client *http.Client, url string) (ok bool) {
-	req, err := http.NewRequest("GET", "https://"+url+"/.git/config", nil)
+	req, err := http.NewRequest("GET", "https://"+url+"/.git/HEAD", nil)
 	if err != nil {
 		return false
 	}
@@ -110,7 +111,8 @@ func verifyNonDirListing(client *http.Client, url string) (ok bool) {
 	if err != nil {
 		return false
 	}
-	if len(string(body)) > 6 && string(body)[:6] == "[core]" {
+	r := regexp.MustCompile("(^(([a-fA-F]|[0-9]){40})|^ref: )")
+	if r.MatchString(string(body)) {
 		return true
 	}
 	return false
